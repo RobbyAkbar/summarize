@@ -3,17 +3,43 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+from contextlib import asynccontextmanager
 import os
 import tempfile
 import asyncio
 from datetime import datetime
 
-from summarizer.core import main
+from summarizer.core import main, load_whisper_model, get_whisper_device
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
+    try:
+        device = get_whisper_device()
+        print(f"[*] Pre-loading Whisper model on startup (device: {device})...")
+
+        # Preload the base model (most commonly used)
+        # This will be cached for subsequent requests
+        load_whisper_model("base", device)
+
+        print(f"[+] Whisper model pre-loaded and cached successfully")
+    except Exception as e:
+        print(f"[!] Warning: Failed to pre-load Whisper model: {e}")
+        print(f"[!] Model will be loaded on first request instead")
+
+    yield
+
+    # Shutdown (if needed in the future)
+    pass
+
 
 app = FastAPI(
     title="Video Summarizer API",
     description="API for transcribing and summarizing videos from various sources",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Enable CORS

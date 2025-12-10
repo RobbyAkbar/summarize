@@ -322,7 +322,7 @@ def load_whisper_model(model_name: str = "base", device: str = None) -> Any:
 
     # Return cached model if same model and device
     if _whisper_model is not None and _whisper_model_name == model_name and _whisper_device == device:
-        print_status(f"Using cached Whisper model ({model_name} on {device})", "INFO", _verbose_mode)
+        print_status(f"Using cached Whisper model ({model_name} on {device})", "SUCCESS", _verbose_mode)
         return _whisper_model
 
     # Load new model
