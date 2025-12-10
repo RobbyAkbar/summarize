@@ -5,6 +5,7 @@ A tool to transcribe and summarize videos from various sources using AI. Support
 How to use it ?
 
 - **CLI** - Command line interface for batch processing and automation
+- **FastAPI** - REST API for programmatic access and integration
 - **Google Colab** - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/martinopiaggi/summarize/blob/main/Summarize.ipynb) Interactive notebook with visual interface
 - **(roadmap) Streamlit** - Web-based GUI for easy video summarization
 
@@ -28,7 +29,7 @@ https://github.com/user-attachments/assets/4641743a-2d0e-4b54-9f82-8195431db3cb
   - Processes multiple videos in one command
 
 - **Output Options**:
-  - Automatic saving to markdown files
+  - Automatic saving to Markdown files
   - Customizable output directory
   - Timestamped summaries
 
@@ -77,6 +78,109 @@ pip install -e .
 - Style + provider combo
   - Gemini + Distill: `python -m summarizer --base-url "https://generativelanguage.googleapis.com/v1beta/openai" --model "gemini-2.5-flash-lite" --prompt-type "Distill Wisdom" --source "https://www.youtube.com/watch?v=VIDEO_ID"`
   - Perplexity + Fact Check: `python -m summarizer --base-url "https://api.perplexity.ai" --model "sonar-pro" --prompt-type "Fact Checker" --chunk-size 100000 --source "https://www.youtube.com/watch?v=VIDEO_ID"`
+
+### FastAPI Usage
+
+Start the API server:
+```bash
+# Using the run script
+python run_api.py
+
+# Or using uvicorn directly
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The API will be available at `http://localhost:8000` with interactive documentation at:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+#### Example API Requests
+
+**Summarize a YouTube video:**
+```bash
+curl -X POST "http://localhost:8000/summarize" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "https://www.youtube.com/watch?v=VIDEO_ID",
+    "base_url": "http://10.40.52.25:30000/v1",
+    "model": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+    "type": "YouTube Video",
+    "transcription": "Local Whisper",
+    "prompt_type": "Questions and answers"
+  }'
+```
+
+**Summarize a local file (upload):**
+```bash
+curl -X POST "http://localhost:8000/summarize/file" \
+  -F "file=@/path/to/video.mp4" \
+  -F "base_url=http://10.40.52.25:30000/v1" \
+  -F "model=Qwen/Qwen3-VL-30B-A3B-Instruct" \
+  -F "transcription=Local Whisper" \
+  -F "prompt_type=Questions and answers"
+```
+
+**Python client example:**
+```python
+import requests
+
+# Summarize from URL
+response = requests.post(
+    "http://localhost:8000/summarize",
+    json={
+        "source": "https://www.youtube.com/watch?v=VIDEO_ID",
+        "base_url": "http://10.40.52.25:30000/v1",
+        "model": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+        "type": "YouTube Video",
+        "transcription": "Local Whisper",
+        "prompt_type": "Questions and answers"
+    }
+)
+result = response.json()
+print(result["summary"])
+
+# Summarize from file upload
+with open("video.mp4", "rb") as f:
+    response = requests.post(
+        "http://localhost:8000/summarize/file",
+        files={"file": f},
+        data={
+            "base_url": "http://10.40.52.25:30000/v1",
+            "model": "Qwen/Qwen3-VL-30B-A3B-Instruct",
+            "transcription": "Local Whisper",
+            "prompt_type": "Questions and answers"
+        }
+    )
+result = response.json()
+print(result["summary"])
+```
+
+**Batch processing:**
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/summarize/batch",
+    json=[
+        {
+            "source": "https://www.youtube.com/watch?v=VIDEO_ID_1",
+            "base_url": "http://10.40.52.25:30000/v1",
+            "model": "Qwen/Qwen3-VL-30B-A3B-Instruct"
+        },
+        {
+            "source": "https://www.youtube.com/watch?v=VIDEO_ID_2",
+            "base_url": "http://10.40.52.25:30000/v1",
+            "model": "Qwen/Qwen3-VL-30B-A3B-Instruct"
+        }
+    ]
+)
+results = response.json()
+for result in results:
+    print(f"Source: {result['source']}")
+    print(f"Success: {result['success']}")
+    if result['success']:
+        print(f"Summary: {result['summary'][:100]}...")
+```
 
 ## Configuration Options
 
@@ -138,7 +242,7 @@ Or provide them directly via --api-key parameter.
 ## Notes
 
 - YouTube videos use captions by default (faster & free)
-- Summaries are automatically saved to markdown files
+- Summaries are automatically saved to Markdown files
 - Each summary includes source URL and timestamp
 - Non-YouTube sources always use audio download
 
