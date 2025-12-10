@@ -200,7 +200,7 @@ def get_handler(source_type: str, source_path: str) -> VideoSourceHandler:
 CONFIG = {
     "type_of_source": "YouTube Video",
     "use_youtube_captions": True,
-    "transcription_method": "Cloud Whisper",
+    "transcription_method": "Local Whisper",
     "language": "auto",
     "prompt_type": "Questions and answers",
     "chunk_size": 10000,
@@ -220,7 +220,7 @@ def get_api_key(cfg: Dict) -> str:
     elif "openai" in base_url:
         key = os.getenv("openai")
     else:
-        raise ValueError(f"No matching service found for base_url: {cfg.get('base_url')}")
+        key = os.getenv("api_key")
     if not key:
         raise ValueError(f"API key not found in environment for base_url: {cfg.get('base_url')}")
     logger.info(f"Using API service: {cfg.get('base_url')}")
