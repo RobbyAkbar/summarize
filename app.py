@@ -115,9 +115,9 @@ def build_config_from_request(request: SummarizeRequest, source_path: str) -> Di
     # Smart caption logic: If user explicitly specifies transcription method,
     # they want to use that method, so disable captions for YouTube videos
     smart_force_download = request.force_download or (
-        request.transcription in ["Cloud Whisper", "Local Whisper"]
+            request.transcription in ["Cloud Whisper", "Local Whisper"]
     )
-    
+
     config = {
         "type_of_source": request.type,
         "use_youtube_captions": not smart_force_download,
@@ -134,35 +134,35 @@ def build_config_from_request(request: SummarizeRequest, source_path: str) -> Di
         "verbose": request.verbose,
         "source_url_or_path": source_path
     }
-    
+
     # If API key provided, use it
     if request.api_key:
         config["api_key"] = request.api_key
-    
+
     return config
 
 
 def save_summary_if_needed(
-    summary: str,
-    source: str,
-    output_dir: str,
-    no_save: bool
+        summary: str,
+        source: str,
+        output_dir: str,
+        no_save: bool
 ) -> Optional[str]:
     """Save summary to file if needed."""
     if no_save:
         return None
-    
+
     os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     clean_source = source.split("?")[0].split("/")[-1]
     filename = f"{clean_source}_{timestamp}.md"
     filepath = os.path.join(output_dir, filename)
-    
+
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(f"# Summary for: {source}\n\n")
         f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write(summary)
-    
+
     return filepath
 
 
@@ -179,13 +179,13 @@ async def summarize_video(request: SummarizeRequest):
     """
     try:
         config = build_config_from_request(request, request.source)
-        
+
         # Run the main processing function
         # Note: main() uses asyncio internally, but we need to run it in executor
         # to avoid blocking the event loop
         loop = asyncio.get_event_loop()
         summary = await loop.run_in_executor(None, main, config)
-        
+
         # Save if needed
         file_path = None
         if not request.no_save:
@@ -195,7 +195,7 @@ async def summarize_video(request: SummarizeRequest):
                 request.output_dir or "summaries",
                 request.no_save
             )
-        
+
         return SummarizeResponse(
             success=True,
             summary=summary,
@@ -209,21 +209,21 @@ async def summarize_video(request: SummarizeRequest):
 
 @app.post("/summarize/file", response_model=SummarizeResponse)
 async def summarize_uploaded_file(
-    file: UploadFile = File(...),
-    base_url: str = Form(...),
-    model: str = Form(...),
-    api_key: Optional[str] = Form(None),
-    output_dir: Optional[str] = Form("summaries"),
-    no_save: bool = Form(False),
-    prompt_type: str = Form("Questions and answers"),
-    language: str = Form("auto"),
-    chunk_size: int = Form(10000),
-    parallel_calls: int = Form(30),
-    max_tokens: int = Form(4096),
-    transcription: str = Form("Local Whisper"),
-    whisper_model: str = Form("base"),
-    whisper_device: Optional[str] = Form(None),
-    verbose: bool = Form(False)
+        file: UploadFile = File(...),
+        base_url: str = Form(...),
+        model: str = Form(...),
+        api_key: Optional[str] = Form(None),
+        output_dir: Optional[str] = Form("summaries"),
+        no_save: bool = Form(False),
+        prompt_type: str = Form("Questions and answers"),
+        language: str = Form("auto"),
+        chunk_size: int = Form(10000),
+        parallel_calls: int = Form(30),
+        max_tokens: int = Form(4096),
+        transcription: str = Form("Local Whisper"),
+        whisper_model: str = Form("base"),
+        whisper_device: Optional[str] = Form(None),
+        verbose: bool = Form(False)
 ):
     """
     Summarize an uploaded video file.
@@ -234,13 +234,13 @@ async def summarize_uploaded_file(
     # Save uploaded file temporarily
     temp_dir = tempfile.gettempdir()
     temp_file_path = os.path.join(temp_dir, f"upload_{file.filename}")
-    
+
     try:
         # Save uploaded file
         with open(temp_file_path, "wb") as f:
             content = await file.read()
             f.write(content)
-        
+
         # Build config
         config = {
             "type_of_source": "Local File",
@@ -258,14 +258,14 @@ async def summarize_uploaded_file(
             "verbose": verbose,
             "source_url_or_path": temp_file_path
         }
-        
+
         if api_key:
             config["api_key"] = api_key
-        
+
         # Process
         loop = asyncio.get_event_loop()
         summary = await loop.run_in_executor(None, main, config)
-        
+
         # Save if needed
         file_path = None
         if not no_save:
@@ -275,7 +275,7 @@ async def summarize_uploaded_file(
                 output_dir or "summaries",
                 no_save
             )
-        
+
         return SummarizeResponse(
             success=True,
             summary=summary,
@@ -302,14 +302,14 @@ async def summarize_batch(requests: List[SummarizeRequest]):
     Process multiple video sources with the same or different configurations.
     """
     results = []
-    
+
     for request in requests:
         try:
             config = build_config_from_request(request, request.source)
-            
+
             loop = asyncio.get_event_loop()
             summary = await loop.run_in_executor(None, main, config)
-            
+
             file_path = None
             if not request.no_save:
                 file_path = save_summary_if_needed(
@@ -318,7 +318,7 @@ async def summarize_batch(requests: List[SummarizeRequest]):
                     request.output_dir or "summaries",
                     request.no_save
                 )
-            
+
             results.append(SummarizeResponse(
                 success=True,
                 summary=summary,
@@ -333,11 +333,11 @@ async def summarize_batch(requests: List[SummarizeRequest]):
                 source=request.source,
                 timestamp=datetime.now().isoformat()
             ))
-    
+
     return results
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
 
+    uvicorn.run(app, host="0.0.0.0", port=5000)
