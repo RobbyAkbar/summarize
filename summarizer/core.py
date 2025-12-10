@@ -11,8 +11,6 @@ import logging
 import sys
 import time
 import threading
-from pathlib import Path
-from contextlib import contextmanager
 from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi
 import pytubefix as pytube
@@ -108,6 +106,11 @@ _current_progress = None
 _completed_chunks = 0
 _verbose_mode = False
 
+# Global Whisper model cache
+_whisper_model = None
+_whisper_model_name = None
+_whisper_device = None
+
 class VideoSourceHandler:
     def __init__(self, source_path: str, temp_dir: Optional[str] = None):
         self.source_path = source_path
@@ -201,6 +204,8 @@ CONFIG = {
     "type_of_source": "YouTube Video",
     "use_youtube_captions": True,
     "transcription_method": "Local Whisper",
+    "whisper_model": "base",  # Options: tiny, base, small, medium, large
+    "whisper_device": None,  # None = auto-detect (cuda if available, else cpu), or specify "cuda" or "cpu"
     "language": "auto",
     "prompt_type": "Questions and answers",
     "chunk_size": 10000,
@@ -297,7 +302,64 @@ def download_youtube_audio(url: str) -> str:
         print_status(f"Failed to download YouTube audio: {str(e)}", "ERROR", _verbose_mode)
         raise Exception(f"Failed to download YouTube audio: {str(e)}")
 
-def transcribe_audio(audio_path: str, method: str = "Cloud Whisper") -> str:
+def get_whisper_device() -> str:
+    """Detect the best available device for Whisper."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+    except ImportError:
+        pass
+    return "cpu"
+
+def load_whisper_model(model_name: str = "base", device: str = None) -> Any:
+    """Load Whisper model with caching and GPU support."""
+    global _whisper_model, _whisper_model_name, _whisper_device, _verbose_mode
+
+    # Use provided device or auto-detect
+    if device is None:
+        device = get_whisper_device()
+
+    # Return cached model if same model and device
+    if _whisper_model is not None and _whisper_model_name == model_name and _whisper_device == device:
+        print_status(f"Using cached Whisper model ({model_name} on {device})", "INFO", _verbose_mode)
+        return _whisper_model
+
+    # Load new model
+    spinner = ProgressSpinner(f"Loading Whisper model ({model_name} on {device})", _verbose_mode)
+    spinner.start()
+
+    try:
+        import whisper
+        import torch
+
+        # Load model with device specification
+        model = whisper.load_model(model_name, device=device)
+
+        # Cache the model
+        _whisper_model = model
+        _whisper_model_name = model_name
+        _whisper_device = device
+
+        spinner.stop()
+        print_status(f"Whisper model loaded successfully on {device}", "SUCCESS", _verbose_mode)
+
+        # Show GPU info if using CUDA
+        if device == "cuda":
+            try:
+                gpu_name = torch.cuda.get_device_name(0)
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                print_status(f"Using GPU: {gpu_name} ({gpu_memory:.1f} GB)", "INFO", _verbose_mode)
+            except Exception:
+                pass
+
+        return model
+    except Exception as e:
+        spinner.stop()
+        print_status(f"Failed to load Whisper model: {str(e)}", "ERROR", _verbose_mode)
+        raise Exception(f"Whisper model loading failed: {str(e)}")
+
+def transcribe_audio(audio_path: str, method: str = "Cloud Whisper", whisper_model: str = "base", device: str = None) -> str:
     """Transcribe audio file."""
     global _verbose_mode
     spinner = None
@@ -347,15 +409,10 @@ def transcribe_audio(audio_path: str, method: str = "Cloud Whisper") -> str:
                 print_status("Install with: pip install openai-whisper", "WARNING", _verbose_mode)
                 raise ImportError("Local Whisper requires 'openai-whisper' package: pip install openai-whisper")
 
-            spinner = ProgressSpinner("Loading Whisper model", _verbose_mode)
-            spinner.start()
-
+            # Load model with caching and GPU support
             try:
-                model = whisper.load_model("base")
-                spinner.stop()
-                print_status("Whisper model loaded", "SUCCESS", _verbose_mode)
+                model = load_whisper_model(whisper_model, device)
             except Exception as e:
-                spinner.stop()
                 print_status(f"Failed to load Whisper model: {str(e)}", "ERROR", _verbose_mode)
                 raise Exception(f"Whisper model loading failed: {str(e)}")
 
@@ -363,7 +420,15 @@ def transcribe_audio(audio_path: str, method: str = "Cloud Whisper") -> str:
             spinner.start()
 
             try:
-                result = model.transcribe(audio_path)
+                # Transcribe with FP16 if using GPU for better performance
+                import torch
+                use_fp16 = device == "cuda" or (device is None and torch.cuda.is_available())
+
+                result = model.transcribe(
+                    audio_path,
+                    fp16=use_fp16,
+                    verbose=False  # Suppress whisper's internal progress
+                )
 
                 transcript = ""
                 for segment in result["segments"]:
@@ -392,6 +457,8 @@ def get_transcript(config: dict) -> str:
     source_type = config.get("type_of_source")
     source_path = config.get("source_url_or_path")
     transcription_method = config.get("transcription_method", "Cloud Whisper")
+    whisper_model = config.get("whisper_model", "base")
+    whisper_device = config.get("whisper_device", None)  # None = auto-detect
 
     if not source_type or not source_path:
         raise ValueError("Source type and path/URL are required")
@@ -410,7 +477,9 @@ def get_transcript(config: dict) -> str:
             audio_path = download_youtube_audio(source_path)
             transcript = transcribe_audio(
                 audio_path,
-                transcription_method
+                transcription_method,
+                whisper_model,
+                whisper_device
             )
             os.remove(audio_path)
             return transcript
@@ -421,7 +490,9 @@ def get_transcript(config: dict) -> str:
             audio_path, should_delete = handler.get_processed_audio()
             transcript = transcribe_audio(
                 audio_path,
-                transcription_method
+                transcription_method,
+                whisper_model,
+                whisper_device
             )
             if should_delete:
                 os.remove(audio_path)

@@ -43,6 +43,8 @@ class SummarizeRequest(BaseModel):
     parallel_calls: int = Field(30, description="Parallel API calls")
     max_tokens: int = Field(4096, description="Max output tokens for each chunk")
     transcription: str = Field("Cloud Whisper", description="Transcription method")
+    whisper_model: str = Field("base", description="Whisper model size (tiny/base/small/medium/large)")
+    whisper_device: Optional[str] = Field(None, description="Device for Whisper (cuda/cpu/None=auto)")
     verbose: bool = Field(False, description="Enable detailed progress output")
 
     class Config:
@@ -74,6 +76,8 @@ class SummarizeFileRequest(BaseModel):
     parallel_calls: int = Field(30, description="Parallel API calls")
     max_tokens: int = Field(4096, description="Max output tokens for each chunk")
     transcription: str = Field("Local Whisper", description="Transcription method")
+    whisper_model: str = Field("base", description="Whisper model size (tiny/base/small/medium/large)")
+    whisper_device: Optional[str] = Field(None, description="Device for Whisper (cuda/cpu/None=auto)")
     verbose: bool = Field(False, description="Enable detailed progress output")
 
 
@@ -118,6 +122,8 @@ def build_config_from_request(request: SummarizeRequest, source_path: str) -> Di
         "type_of_source": request.type,
         "use_youtube_captions": not smart_force_download,
         "transcription_method": request.transcription,
+        "whisper_model": request.whisper_model,
+        "whisper_device": request.whisper_device,
         "language": request.language,
         "prompt_type": request.prompt_type,
         "chunk_size": request.chunk_size,
@@ -215,6 +221,8 @@ async def summarize_uploaded_file(
     parallel_calls: int = Form(30),
     max_tokens: int = Form(4096),
     transcription: str = Form("Local Whisper"),
+    whisper_model: str = Form("base"),
+    whisper_device: Optional[str] = Form(None),
     verbose: bool = Form(False)
 ):
     """
@@ -238,6 +246,8 @@ async def summarize_uploaded_file(
             "type_of_source": "Local File",
             "use_youtube_captions": False,
             "transcription_method": transcription,
+            "whisper_model": whisper_model,
+            "whisper_device": whisper_device,
             "language": language,
             "prompt_type": prompt_type,
             "chunk_size": chunk_size,
