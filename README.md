@@ -2,6 +2,15 @@
 
 A tool to transcribe and summarize videos from various sources using AI. Supports YouTube, Google Drive, Dropbox, and local files.
 
+## 🚀 NEW: GPU-Optimized Whisper Model
+
+**10-20x faster transcription** with automatic GPU detection and model caching!
+
+- ✅ **Model Caching** - Load once, reuse for all requests
+- ✅ **GPU Acceleration** - Automatic CUDA detection and FP16 precision
+- ✅ **Configurable** - Choose model size (tiny/base/small/medium/large)
+- ✅ **No Semaphore Leaks** - Proper async cleanup
+
 How to use it ?
 
 - **CLI** - Command line interface for batch processing and automation
@@ -17,6 +26,7 @@ https://github.com/user-attachments/assets/4641743a-2d0e-4b54-9f82-8195431db3cb
   - YouTube (with automatic caption support)
   - Google Drive
   - Dropbox
+  - Direct URLs (HTTP/HTTPS video files from cloud storage)
   - Local files
 
 - **Flexible API Support**:
@@ -71,6 +81,9 @@ pip install -e .
 
 - Local files
   - `python -m summarizer --type "Local File" --base-url "https://api.deepseek.com/v1" --model "deepseek-chat" --source "./lecture.mp4" "./lecture2.mp4" "./lecture3.mp4" 
+
+- Direct URL (cloud storage)
+  - `python -m summarizer --type "Direct URL" --base-url "https://api.deepseek.com/v1" --model "deepseek-chat" --source "http://video.waskita.ai/storage/videos/4d23nb84vwDb6l91eND4wKk2XQDN90hIyxsIXMvp.mp4"`
 
 - Long videos (bigger chunks)
   - `python -m summarizer --base-url "https://generativelanguage.googleapis.com/v1beta/openai" --model "gemini-2.5-flash-lite" --chunk-size 28000 --source "https://www.youtube.com/watch?v=VIDEO_ID"`

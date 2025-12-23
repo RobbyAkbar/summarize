@@ -3,8 +3,7 @@ import argparse
 import os
 import sys
 from datetime import datetime
-from typing import List
-from .core import main, CONFIG
+from .core import main
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Summarize video content from various sources")
@@ -14,8 +13,8 @@ def parse_args():
                        help="One or more video sources")
     parser.add_argument("--type", 
                        choices=["YouTube Video", "Google Drive Video Link", 
-                               "Dropbox Video Link", "Local File"],
-                       default="YouTube Video", 
+                               "Dropbox Video Link", "Local File", "Direct URL"],
+                       default="YouTube Video",
                        help="Source type")
     parser.add_argument("--force-download", action="store_true", 
                        help="Force audio download instead of using YouTube captions")

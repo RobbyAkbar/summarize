@@ -186,11 +186,78 @@ class DropboxHandler(VideoSourceHandler):
         
         return processed_path, True
 
+class DirectURLHandler(VideoSourceHandler):
+    """Handler for direct HTTP/HTTPS video file URLs."""
+    def get_processed_audio(self) -> Tuple[str, bool]:
+        global _verbose_mode
+
+        # Validate URL
+        if not self.source_path.startswith(('http://', 'https://')):
+            raise ValueError(f"Invalid URL: {self.source_path}")
+
+        spinner = ProgressSpinner("Downloading video from URL", _verbose_mode)
+        spinner.start()
+
+        try:
+            import requests
+
+            # Determine file extension from URL or default to mp4
+            file_ext = os.path.splitext(self.source_path)[1] or '.mp4'
+            temp_video = os.path.join(self.temp_dir, f"direct_url_video{file_ext}")
+
+            # Download with streaming to handle large files
+            response = requests.get(self.source_path, stream=True, timeout=30)
+            response.raise_for_status()
+
+            total_size = int(response.headers.get('content-length', 0))
+
+            with open(temp_video, 'wb') as f:
+                if total_size > 0 and _verbose_mode:
+                    spinner.stop()
+                    progress = ProgressBar(total_size, "Downloading", 50)
+                    downloaded = 0
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            progress.update(downloaded)
+                else:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+
+            spinner.stop()
+            print_status("Video downloaded successfully", "SUCCESS", _verbose_mode)
+
+            # Convert to WAV then process
+            spinner = ProgressSpinner("Processing audio", _verbose_mode)
+            spinner.start()
+
+            temp_wav = os.path.join(self.temp_dir, "direct_url_audio.wav")
+            convert_to_wav(temp_video, temp_wav)
+            processed_path = os.path.join(self.temp_dir, "direct_url_processed.mp3")
+            process_audio_file(temp_wav, processed_path)
+
+            # Cleanup temporary files
+            self.cleanup(temp_video)
+            self.cleanup(temp_wav)
+
+            spinner.stop()
+            print_status("Audio processing completed", "SUCCESS", _verbose_mode)
+
+            return processed_path, True
+
+        except Exception as e:
+            spinner.stop()
+            print_status(f"Failed to download or process video: {str(e)}", "ERROR", _verbose_mode)
+            raise Exception(f"Failed to process direct URL: {str(e)}")
+
 def get_handler(source_type: str, source_path: str) -> VideoSourceHandler:
     handlers = {
         "Local File": LocalFileHandler,
         "Google Drive Video Link": GoogleDriveHandler,
-        "Dropbox Video Link": DropboxHandler
+        "Dropbox Video Link": DropboxHandler,
+        "Direct URL": DirectURLHandler
     }
     
     handler_class = handlers.get(source_type)

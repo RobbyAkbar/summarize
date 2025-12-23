@@ -3,3 +3,9 @@ fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
 pydantic
+aiohttp
+python-dotenv
+youtube-transcript-api
+pytubefix
+groq
+requests

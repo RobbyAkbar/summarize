@@ -201,6 +201,7 @@ async def summarize_video(request: SummarizeRequest):
     - YouTube videos (with automatic caption support)
     - Google Drive links
     - Dropbox links
+    - Direct URLs (HTTP/HTTPS video files from cloud storage)
     - Local file paths
     """
     try:
